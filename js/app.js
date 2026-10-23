@@ -42,8 +42,12 @@
   function bindToolbar() {
     $('mapSelect').addEventListener('change', e => LT.switchMap(e.target.value));
     $('btnNewMap').addEventListener('click', () => {
-      const t = prompt('新学习树的主题：', '');
-      if (t && t.trim()) LT.newMap(t.trim());
+      $('newMapTitle').value = '';
+      $('dlgNewMap').showModal();
+    });
+    $('dlgNewMap').addEventListener('close', () => {
+      const t = $('newMapTitle').value.trim();
+      if ($('dlgNewMap').returnValue === 'ok' && t) LT.newMap(t);
     });
     $('btnDelMap').addEventListener('click', LT.deleteMap);
     $('btnAddChild').addEventListener('click', () => LT.addChild(S.selectedId));

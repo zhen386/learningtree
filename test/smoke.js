@@ -56,6 +56,20 @@ app.on('browser-window-created', (e, win) => {
       await wait(800);
       check('data survives reload', await ev('[...LT.index.values()].some(i => i.node.title === "改名后" && i.side === "left")'));
 
+      // 新建树（Electron 不支持 prompt()，必须用页面内对话框）
+      const mapsBefore = await ev('LT.state.db.maps.length');
+      await ev('document.getElementById("btnNewMap").click()');
+      check('new-tree dialog opens', await ev('document.getElementById("dlgNewMap").open'));
+      await ev(`document.getElementById("newMapTitle").value = "冒烟新树";
+        document.querySelector('#dlgNewMap button[value="ok"]').click(); 0`);
+      await wait(300);
+      check('new tree created', await ev(`LT.state.db.maps.length === ${mapsBefore} + 1 && LT.state.map.root.title === "冒烟新树"`));
+      await ev('document.getElementById("btnNewMap").click(); document.querySelector(\'#dlgNewMap button[value="cancel"]\').click(); 0');
+      await wait(200);
+      check('cancel creates nothing', await ev(`LT.state.db.maps.length === ${mapsBefore} + 1`));
+      // 回到原来的树继续后面的测试
+      await ev('LT.switchMap(LT.state.db.maps[0].id)');
+
       // 协议只开放前端文件
       check('desktop code not served', await ev('fetch("app://tree/desktop/main.js").then(r => r.status)') === 404);
       check('node_modules not served', await ev('fetch("app://tree/package.json").then(r => r.status)') === 404);

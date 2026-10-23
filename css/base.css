@@ -114,3 +114,4 @@ dialog td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-ali
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 aside#panel.drop-files { box-shadow: inset 0 0 0 3px var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+dialog input.wide { width: 100%; font-size: 15px; padding: 6px 10px; }

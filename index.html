@@ -64,6 +64,19 @@
   <aside id="panel" aria-label="节点详情"></aside>
 </main>
 
+<!-- 新建学习树：用页面内对话框代替 prompt()（Electron 不支持 prompt） -->
+<dialog id="dlgNewMap">
+  <form method="dialog">
+    <h3>新建学习树</h3>
+    <label class="field" for="newMapTitle">主题</label>
+    <input id="newMapTitle" class="wide" required maxlength="100" autocomplete="off" placeholder="例如：机器学习、日语 N2、吉他">
+    <div class="actions">
+      <button value="cancel" formnovalidate>取消</button>
+      <button value="ok" class="primary">创建</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="dlgOutline">
   <form method="dialog">
     <h3>粘贴大纲</h3>
