@@ -1,0 +1,73 @@
+/* 画布 */
+#canvas {
+  flex: 1; position: relative; overflow: hidden; cursor: grab; touch-action: none; outline: none;
+  user-select: none; -webkit-user-select: none;
+  background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 22px 22px;
+}
+#canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+#canvas.panning { cursor: grabbing; }
+#world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+#edges { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.edge { fill: none; stroke: var(--todo); stroke-width: 2; opacity: .5; }
+.edge.doing { stroke: var(--doing); opacity: .8; }
+.edge.done { stroke: var(--done); opacity: .8; }
+
+/* 节点 */
+.node {
+  position: absolute; left: 0; top: 0; width: max-content; min-width: 64px; max-width: 240px;
+  padding: 6px 16px 6px 10px; background: var(--node); border: 2px solid var(--todo);
+  border-radius: 10px; box-shadow: 0 1px 3px rgba(0, 0, 0, .08); cursor: pointer; user-select: none;
+}
+.node.s-doing { border-color: var(--doing); }
+.node.s-done { border-color: var(--done); background: color-mix(in srgb, var(--done) 9%, var(--node)); }
+.node.root { padding: 10px 20px 10px 20px; font-size: 17px; font-weight: 600; border-width: 3px; max-width: 280px; }
+.node.hit { background: var(--hit); }
+.node.selected { box-shadow: 0 0 0 3px var(--accent); }
+.node.dragging { opacity: .75; pointer-events: none; z-index: 10; box-shadow: 0 8px 22px rgba(0, 0, 0, .25); }
+.node.drop-child { box-shadow: 0 0 0 3px var(--done); }
+/* 拖拽时的插入位置指示线 */
+#dropLine {
+  position: absolute; left: 0; top: 0; width: 110px; height: 4px; margin-top: -2px;
+  border-radius: 2px; background: var(--done); pointer-events: none; display: none; z-index: 5;
+}
+#dropLine::before {
+  content: ''; position: absolute; top: -3px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--done); left: -5px;
+}
+#dropLine.to-left::before { left: auto; right: -5px; }
+
+.head { display: flex; align-items: flex-start; gap: 7px; }
+.dot {
+  flex: none; width: 14px; height: 14px; margin-top: 3px; border-radius: 50%;
+  border: 2px solid var(--todo); cursor: pointer;
+}
+.root .dot { margin-top: 6px; }
+.dot:hover { transform: scale(1.25); }
+.s-doing .dot { border-color: var(--doing); background: linear-gradient(90deg, var(--doing) 50%, transparent 50%); }
+.s-done .dot { border-color: var(--done); background: var(--done); }
+.title { word-break: break-word; outline: none; min-width: 1em; }
+.title[contenteditable] { cursor: text; user-select: text; background: var(--bg); border-radius: 3px; padding: 0 3px; }
+
+.meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 11px; font-weight: normal; color: var(--muted); }
+.fold {
+  position: absolute; right: -11px; top: 50%; transform: translateY(-50%);
+  min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--panel); font-size: 11px; line-height: 18px; text-align: center; color: var(--muted);
+  font-weight: normal; cursor: pointer;
+}
+/* 左侧分支：镜像内边距，折叠按钮放在外侧（左边） */
+.node.left { padding: 6px 10px 6px 16px; }
+.node.left .fold { right: auto; left: -11px; }
+.fold:hover { border-color: var(--accent); color: var(--accent); }
+.fold.has-hit { background: var(--hit); color: var(--text); }
+/* 根节点：左右各一个折叠按钮 */
+.node.root .fold-left { right: auto; left: -11px; }
+
+/* 缩放控件 */
+.zoom-ctrl {
+  position: absolute; right: 12px; bottom: 12px; display: flex; gap: 4px; align-items: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px; cursor: default;
+}
+.zoom-ctrl button { padding: 2px 9px; }
+#zoomLabel { min-width: 44px; text-align: center; font-size: 12px; color: var(--muted); }
+.hint { position: absolute; left: 12px; bottom: 14px; font-size: 12px; color: var(--muted); pointer-events: none; }
