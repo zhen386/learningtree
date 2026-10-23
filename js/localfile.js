@@ -98,10 +98,29 @@
   const putHandle = (key, handle) => tx('readwrite', s => s.put(handle, key));
   const getHandle = key => tx('readonly', s => s.get(key));
 
-  LT.canPickFiles = () => typeof window.showOpenFilePicker === 'function';
+  LT.canPickFiles = () => !!LT.desktop || typeof window.showOpenFilePicker === 'function';
 
-  // 弹出系统文件选择框，返回 [{ title, url: '', fileKey }]
+  // ---- 桌面版：直接记录绝对路径，由系统打开 ----
+  const baseName = p => p.replace(/[\\/]+$/, '').split(/[\\/]/).pop();
+  const pathResource = p => ({ title: baseName(p), url: p });
+
+  async function desktopResult(r) {
+    if (r && r.ok) return;
+    if (r && r.error === 'blocked') LT.toast(r.message, 5000);
+    else LT.toast((r && r.message) || '打开失败', 5000);
+  }
+  LT.openLocalPath = u => LT.desktop.openPath(LT.fileUrlToPath(LT.pathToFileUrl(u) || u)).then(desktopResult);
+  LT.revealLocalPath = u => LT.desktop.revealPath(LT.fileUrlToPath(LT.pathToFileUrl(u) || u)).then(desktopResult);
+
+  // 把拖进来的文件转成资源（仅桌面版能拿到真实路径）
+  LT.resourcesFromDrop = function (dataTransfer) {
+    if (!LT.desktop || !dataTransfer) return [];
+    return [...dataTransfer.files].map(f => LT.desktop.getPathForFile(f)).filter(Boolean).map(pathResource);
+  };
+
+  // 弹出系统文件选择框。桌面版返回 [{ title, url: 路径 }]；网页版返回 [{ title, url: '', fileKey }]
   LT.pickLocalFiles = async function () {
+    if (LT.desktop) return (await LT.desktop.pickFiles()).map(pathResource);
     let handles;
     try {
       handles = await window.showOpenFilePicker({ multiple: true });
@@ -126,6 +145,11 @@
 
   // 用户点击后调用：必须在点击的同步阶段先开好窗口，否则会被弹窗拦截
   LT.openLocalFile = async function (res, onRelink) {
+    if (LT.desktop) {
+      // 网页版选的文件在桌面版中没有路径信息，需要重新选择一次
+      if (confirm('“' + res.title + '”是在网页版中选择的文件，桌面版无法直接打开。\n现在重新选择这个文件吗？')) onRelink();
+      return;
+    }
     const win = window.open('', '_blank');
     const fail = msg => { if (win) win.close(); LT.toast(msg, 5000); };
     let handle;
@@ -164,7 +188,7 @@
     }
   };
 
-  // 为已有的文件资源重新选择文件
+  // 为已有的文件资源重新选择文件（网页版）
   LT.relinkLocalFile = async function () {
     try {
       const [h] = await window.showOpenFilePicker({ multiple: false });

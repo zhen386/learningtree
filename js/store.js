@@ -121,9 +121,20 @@ window.LT = window.LT || {};
   };
 
   // ---- 持久化 ----
-  LT.load = function () {
+  // 桌面版（Electron）通过 window.desktop 读写数据文件；网页版使用 localStorage
+  LT.desktop = window.desktop || null;
+
+  async function readRaw() {
+    if (LT.desktop) {
+      const r = await LT.desktop.load();
+      return r && r.json;
+    }
+    return localStorage.getItem(KEY);
+  }
+
+  LT.load = async function () {
     let db = null;
-    try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) { /* 数据损坏时回退到示例 */ }
+    try { db = JSON.parse(await readRaw()); } catch (e) { /* 数据损坏或不存在时回退到示例 */ }
     if (!db || !Array.isArray(db.maps) || !db.maps.length) {
       db = { current: null, maps: [{ id: LT.uid(), root: LT.normalize(LT.sample()) }] };
     } else {
@@ -136,28 +147,61 @@ window.LT = window.LT || {};
     LT.reindex();
   };
 
-  let saveTimer = null, flashTimer = null;
+  let saveTimer = null, flashTimer = null, saveErrorShown = false;
+  let writing = Promise.resolve();  // 桌面版按顺序写入，避免旧内容覆盖新内容
+  let dirty = false;                // 有尚未写入磁盘的修改
+
   LT.save = function () {
+    dirty = true;
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(LT.saveNow, 250);
+    saveTimer = setTimeout(LT.saveNow, LT.desktop ? 400 : 250);
   };
+
+  function flashSaved() {
+    saveErrorShown = false;
+    const el = document.getElementById('saved');
+    if (!el) return;
+    el.textContent = '已保存';
+    el.classList.add('show');
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => el.classList.remove('show'), 900);
+  }
+  function saveFailed(e) {
+    const el = document.getElementById('saved');
+    if (el) { el.textContent = '⚠ 保存失败'; el.classList.add('show'); }
+    if (saveErrorShown) return;
+    saveErrorShown = true;
+    alert('保存失败：' + (e && e.message || e) + '\n请先导出备份数据，并检查数据文件所在位置是否可写。');
+  }
+
   LT.saveNow = function () {
     clearTimeout(saveTimer);
     saveTimer = null;
+    if (!S.db) return Promise.resolve();
+    const json = JSON.stringify(S.db);
+    dirty = false;
+    if (LT.desktop) {
+      writing = writing.then(() => LT.desktop.save(json)).then(flashSaved, e => { dirty = true; saveFailed(e); });
+      return writing;
+    }
     try {
-      localStorage.setItem(KEY, JSON.stringify(S.db));
+      localStorage.setItem(KEY, json);
+      flashSaved();
     } catch (e) {
-      alert('保存失败：' + e.message + '\n请先“导出 JSON”备份数据。');
-      return;
+      dirty = true;
+      saveFailed(e);
     }
-    const el = document.getElementById('saved');
-    if (el) {
-      el.classList.add('show');
-      clearTimeout(flashTimer);
-      flashTimer = setTimeout(() => el.classList.remove('show'), 900);
-    }
+    return Promise.resolve();
   };
-  window.addEventListener('beforeunload', () => { if (saveTimer) LT.saveNow(); });
+
+  // 关闭/刷新前把最后的修改同步写入
+  window.addEventListener('beforeunload', () => {
+    if (!dirty || !S.db) return;
+    clearTimeout(saveTimer);
+    const json = JSON.stringify(S.db);
+    if (LT.desktop) LT.desktop.saveSync(json);
+    else try { localStorage.setItem(KEY, json); } catch (e) { /* 无法处理 */ }
+  });
 
   LT.switchMap = function (id) {
     const m = S.db.maps.find(x => x.id === id);

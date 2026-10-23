@@ -19,6 +19,12 @@
     download(safeName(S.map.root.title) + '.json', JSON.stringify(data, null, 2), 'application/json');
   };
 
+  // 导出全部学习树（用于备份，或从网页版迁移到桌面版）
+  LT.exportAll = function () {
+    const data = { app: 'learning-tree', version: 1, exportedAt: new Date().toISOString(), maps: S.db.maps };
+    download('学习树-全部-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(data, null, 2), 'application/json');
+  };
+
   // 叶子输出 [ ]/[~]/[x]；笔记与资源以 "> " 行跟在节点下面
   LT.toMarkdown = function (root) {
     const out = ['# ' + root.title];

@@ -13,6 +13,12 @@
   const endTyping = () => { typingOpen = false; };
 
   async function relink(n, i) {
+    if (LT.desktop) {
+      // 桌面版：重新选择后直接改为路径引用
+      const [p] = await LT.pickLocalFiles();
+      if (p) LT.updateNode(n.id, x => { x.resources[i] = { title: x.resources[i].title || p.title, url: p.url }; });
+      return;
+    }
     const r = await LT.relinkLocalFile();
     if (r) LT.updateNode(n.id, x => { x.resources[i].fileKey = r.fileKey; if (!x.resources[i].title) x.resources[i].title = r.title; });
   }
@@ -32,14 +38,27 @@
       sub = h('div', { class: 'muted' }, '本机文件 · 仅在本浏览器中可直接打开');
       extra = h('button', { title: '重新选择文件', 'aria-label': '重新选择文件 ' + label, onclick: () => relink(n, i) }, '↻');
     } else if (local) {
-      // 本机路径：网页通过 http 打开时浏览器会拦截 file: 链接，改为复制路径
-      const blocked = LT.fileLinksBlocked();
-      main = h('a', {
-        href: url, target: '_blank', rel: 'noopener noreferrer', title: LT.fileUrlToPath(url),
-        onclick: blocked ? e => { e.preventDefault(); LT.copyPath(r.url); } : null,
-      }, '📁 ' + label);
-      sub = h('div', { class: 'muted' }, LT.fileUrlToPath(url));
-      extra = h('button', { title: '复制路径', 'aria-label': '复制路径 ' + label, onclick: () => LT.copyPath(r.url) }, '⧉');
+      const path = LT.fileUrlToPath(url);
+      if (LT.desktop) {
+        // 桌面版：用系统默认程序打开，或在资源管理器中显示
+        main = h('a', {
+          href: url, title: '用默认程序打开：' + path,
+          onclick: e => { e.preventDefault(); LT.openLocalPath(r.url); },
+        }, '📁 ' + label);
+        extra = [
+          h('button', { title: '在资源管理器中显示', 'aria-label': '在资源管理器中显示 ' + label, onclick: () => LT.revealLocalPath(r.url) }, '📂'),
+          h('button', { title: '复制路径', 'aria-label': '复制路径 ' + label, onclick: () => LT.copyPath(r.url) }, '⧉'),
+        ];
+      } else {
+        // 网页通过 http 打开时浏览器会拦截 file: 链接，改为复制路径
+        const blocked = LT.fileLinksBlocked();
+        main = h('a', {
+          href: url, target: '_blank', rel: 'noopener noreferrer', title: path,
+          onclick: blocked ? e => { e.preventDefault(); LT.copyPath(r.url); } : null,
+        }, '📁 ' + label);
+        extra = h('button', { title: '复制路径', 'aria-label': '复制路径 ' + label, onclick: () => LT.copyPath(r.url) }, '⧉');
+      }
+      sub = h('div', { class: 'muted' }, path);
     } else if (url) {
       main = h('a', { href: url, target: '_blank', rel: 'noopener noreferrer', title: r.url }, label);
     } else {
@@ -116,13 +135,15 @@
     const pick = h('div', { class: 'res-pick' },
       h('button', {
         disabled: !LT.canPickFiles(),
-        title: LT.canPickFiles() ? '选择后可在本浏览器中直接点击打开' : '当前浏览器不支持，请使用 Chrome 或 Edge',
+        title: LT.desktop ? '选择文件后记录其路径，点击即用系统默认程序打开'
+          : LT.canPickFiles() ? '选择后可在本浏览器中直接点击打开' : '当前浏览器不支持，请使用 Chrome 或 Edge',
         onclick: async () => {
           const files = await LT.pickLocalFiles();
           if (files.length) LT.updateNode(n.id, x => x.resources.push(...files));
         },
       }, '📄 选择本机文件…'),
-      !LT.canPickFiles() ? h('span', { class: 'muted' }, '需 Chrome / Edge，也可直接粘贴路径') : null);
+      LT.desktop ? h('span', { class: 'muted' }, '也可把文件拖到这里')
+        : !LT.canPickFiles() ? h('span', { class: 'muted' }, '需 Chrome / Edge，也可直接粘贴路径') : null);
 
     const isRoot = !info.parent;
     let sideCtrl = null;
@@ -145,6 +166,25 @@
         h('button', { onclick: () => LT.shift(n.id, 1) }, '下移'),
         h('button', { class: 'danger', onclick: () => LT.removeNode(n.id) },
           isLeaf ? '删除' : `删除（含 ${LT.countDesc(n)} 个子节点）`));
+
+    // 桌面版：把文件从资源管理器拖进面板即可添加为资源
+    if (LT.desktop) {
+      panel.ondragover = e => {
+        if (![...e.dataTransfer.types].includes('Files')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'link';
+        panel.classList.add('drop-files');
+      };
+      panel.ondragleave = e => { if (!panel.contains(e.relatedTarget)) panel.classList.remove('drop-files'); };
+      panel.ondrop = e => {
+        panel.classList.remove('drop-files');
+        const files = LT.resourcesFromDrop(e.dataTransfer);
+        if (!files.length) return;
+        e.preventDefault();
+        LT.updateNode(S.selectedId, x => x.resources.push(...files));
+        LT.toast('已添加 ' + files.length + ' 个本机文件');
+      };
+    }
 
     panel.textContent = '';
     panel.append(

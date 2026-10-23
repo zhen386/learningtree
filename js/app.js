@@ -53,6 +53,7 @@
     $('btnExpand').addEventListener('click', () => LT.setAllCollapsed(false));
     $('btnCollapse').addEventListener('click', () => LT.setAllCollapsed(true));
     $('btnExport').addEventListener('click', LT.exportJson);
+    $('btnExportAll').addEventListener('click', LT.exportAll);
     $('btnExportMd').addEventListener('click', LT.exportMarkdown);
     $('btnImport').addEventListener('click', () => $('fileInput').click());
     $('fileInput').addEventListener('change', e => {
@@ -88,12 +89,38 @@
     $('btnCenter').addEventListener('click', () => LT.centerOn(S.selectedId));
   }
 
+  // 桌面版原生菜单发来的命令
+  function bindDesktopMenu() {
+    if (!LT.desktop) return;
+    const click = id => () => $(id).click();
+    const cmds = {
+      newMap: click('btnNewMap'), import: click('btnImport'),
+      exportJson: LT.exportJson, exportAll: LT.exportAll, exportMd: LT.exportMarkdown,
+      undo: LT.undo, redo: LT.redo, find: () => $('search').select(),
+      fit: LT.fit, expandAll: click('btnExpand'), collapseAll: click('btnCollapse'),
+      help: click('btnHelp'),
+    };
+    LT.desktop.onMenu(cmd => {
+      // 输入框里的撤销/重做交给浏览器原生文字撤销
+      const t = document.activeElement;
+      const inField = t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
+      if ((cmd === 'undo' || cmd === 'redo') && inField) {
+        document.execCommand(cmd);
+        return;
+      }
+      if (cmds[cmd]) cmds[cmd]();
+    });
+    document.body.classList.add('is-desktop');
+  }
+
   LT.initRender();
   LT.initInteract();
   bindToolbar();
-  LT.load();
-  LT.renderAll();
-  LT.fit();
-  // 字体加载完成后节点尺寸会变化，重新布局一次
-  if (document.fonts) document.fonts.ready.then(() => { LT.renderTree(); LT.fit(); });
+  bindDesktopMenu();
+  LT.load().then(() => {
+    LT.renderAll();
+    LT.fit();
+    // 字体加载完成后节点尺寸会变化，重新布局一次
+    if (document.fonts) document.fonts.ready.then(() => { LT.renderTree(); LT.fit(); });
+  });
 })(window.LT);
