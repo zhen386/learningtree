@@ -70,6 +70,32 @@ app.on('browser-window-created', (e, win) => {
       // 回到原来的树继续后面的测试
       await ev('LT.switchMap(LT.state.db.maps[0].id)');
 
+      // 节点关联：共享标题 / 状态 / 笔记 / 资源，进度统计去重
+      await ev(`window._a = LT.addChild(LT.state.map.root.id, "关联A", "left");
+        window._b = LT.addChild(LT.state.map.root.id, "关联B", "right");
+        LT.updateNode(_b.id, x => { x.notes = "B 的笔记"; x.resources.push({ title: "B 的资源", url: "" }); }); 0`);
+      const node = id => `LT.index.get(${id}.id).node`;
+      const total0 = await ev('LT.index.get(LT.state.map.root.id).stats.total');
+      await ev('LT.select(_a.id); LT.startLinkPick(_a.id); 0');
+      check('link pick mode', await ev('document.getElementById("canvas").classList.contains("picking")'));
+      await ev('document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); 0');
+      check('esc cancels link pick', await ev('!document.getElementById("canvas").classList.contains("picking") && !LT.state.linkFrom'));
+      await ev('LT.linkNodes(_a.id, _b.id); 0');
+      check('linked nodes merged', await ev(`(() => { const a = ${node('_a')}, b = ${node('_b')};
+        return !!a.link && a.link === b.link && b.title === "关联A" && a.notes === "B 的笔记" && a.resources.length === 1; })()`));
+      check('linked leaf counted once', await ev('LT.index.get(LT.state.map.root.id).stats.total') === total0 - 1);
+      await ev('LT.setStatus(_a.id, "done"); LT.rename(_b.id, "关联节点"); LT.updateNode(_a.id, x => { x.notes = "新笔记"; }); 0');
+      check('status, title, notes shared', await ev(`${node('_b')}.status === "done" && ${node('_a')}.title === "关联节点" && ${node('_b')}.notes === "新笔记"`));
+      check('twin highlighted with link line', await ev(`(LT.select(_a.id),
+        document.getElementById("n-" + _b.id).classList.contains("twin") && document.querySelectorAll("#edges .link-edge").length === 1)`));
+      check('panel lists twin', await ev('document.querySelectorAll("#panel .link-path").length === 1'));
+      check('panel has no "null" text', await ev('![...document.getElementById("panel").childNodes].some(c => c.nodeType === 3 && c.textContent.includes("null"))'));
+      check('ancestor link rejected', await ev(`(() => { const c = LT.addChild(_a.id, "子"); return LT.linkNodes(_a.id, c.id) === false && !!${node('_a')}.link; })()`));
+      await ev('LT.undo(); LT.undo(); LT.undo(); LT.undo(); LT.undo(); 0');
+      check('undo removes link', await ev(`!${node('_a')}.link && !${node('_b')}.link`));
+      await ev('LT.redo(); LT.unlinkNode(_a.id); 0');
+      check('unlink clears both', await ev(`!${node('_a')}.link && !${node('_b')}.link`));
+
       // 协议只开放前端文件
       check('desktop code not served', await ev('fetch("app://tree/desktop/main.js").then(r => r.status)') === 404);
       check('node_modules not served', await ev('fetch("app://tree/package.json").then(r => r.status)') === 404);

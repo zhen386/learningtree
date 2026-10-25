@@ -11,6 +11,7 @@
 .edge { fill: none; stroke: var(--todo); stroke-width: 2; opacity: .5; }
 .edge.doing { stroke: var(--doing); opacity: .8; }
 .edge.done { stroke: var(--done); opacity: .8; }
+.link-edge { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 6 5; opacity: .7; }
 
 /* 节点 */
 .node {
@@ -25,6 +26,10 @@
 .node.selected { box-shadow: 0 0 0 3px var(--accent); }
 .node.dragging { opacity: .75; pointer-events: none; z-index: 10; box-shadow: 0 8px 22px rgba(0, 0, 0, .25); }
 .node.drop-child { box-shadow: 0 0 0 3px var(--done); }
+/* 选中节点的关联节点 */
+.node.twin { outline: 2px dashed var(--accent); outline-offset: 3px; }
+.meta .link-badge { color: var(--accent); }
+#canvas.picking, #canvas.picking .node { cursor: crosshair; }
 /* 拖拽时的插入位置指示线 */
 #dropLine {
   position: absolute; left: 0; top: 0; width: 110px; height: 4px; margin-top: -2px;

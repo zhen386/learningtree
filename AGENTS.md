@@ -4,7 +4,7 @@
 
 ## 命令
 - `npm start`：运行桌面版
-- `npm test`：冒烟测试（`test/smoke.js`），结果看 `test/smoke.log`，末尾应为 `ALL PASS`（Windows 下读不到 Electron 的 stdout）
+- `npm test`：冒烟测试（`test/smoke.js`），结果看 `test/smoke.log`，末尾应为 `ALL PASS`（Windows 下读不到 Electron 的 stdout）。若环境中设置了 `ELECTRON_RUN_AS_NODE`，需先清除，否则 Electron 会以 Node 模式运行而报错
 - `npm run dist`：打包 NSIS 安装包和便携版到 `dist/`
 - 网页版：`python -m http.server 5173 --bind 127.0.0.1`
 
@@ -16,6 +16,7 @@
 
 ## 约定
 - 修改树的操作一律通过 `LT.commit(fn)`，它负责记录撤销点、重建索引、保存和重绘
+- 关联节点（`link` 相同）共享标题、笔记、资源和叶子状态，各存一份副本；修改这些字段要走 `LT.updateNode` / `LT.rename` / `LT.setStatus` 才会同步。进度统计中关联的叶子只计一次
 - 前端用 `LT.desktop` 判断是否运行在桌面版，两种模式都要能用
 - Electron 不支持 `prompt()`，需要输入时用页面内的 `<dialog>`
 - 测试时设置 `LEARNING_TREE_HOME` 指向临时目录，避免改动真实数据（默认在 `文档\学习树\`）

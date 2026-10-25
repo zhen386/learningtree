@@ -69,6 +69,8 @@
     }
     if (n.resources.length) meta.push(h('span', { title: n.resources.length + ' 个资源' }, '🔗' + n.resources.length));
     if (n.notes.trim()) meta.push(h('span', { title: '有笔记' }, '📝'));
+    const twins = LT.twins(n).length;
+    if (twins) meta.push(h('span', { class: 'link-badge', title: `关联 ${twins + 1} 处，内容与进度共享` }, '⇄' + (twins + 1)));
     if (meta.length) el.append(h('div', { class: 'meta' }, meta));
 
     if (isRoot(n)) {
@@ -146,6 +148,33 @@
     edgesEl.append(frag);
   }
 
+  // 选中节点的关联节点：高亮并用虚线连起来（折叠隐藏的不画）
+  function drawLinks() {
+    const S = LT.state;
+    nodesEl.querySelectorAll('.node.twin').forEach(el => el.classList.remove('twin'));
+    edgesEl.querySelectorAll('.link-edge').forEach(el => el.remove());
+    const info = LT.index.get(S.selectedId), a = LT.boxes.get(S.selectedId);
+    if (!info || !a) return;
+    // dir=1 从节点右边缘连出，-1 从左边缘
+    const end = (b, dir) => [dir > 0 ? b.x + b.w : b.x, b.y + b.h / 2];
+    LT.twins(info.node).forEach(t => {
+      const b = LT.boxes.get(t.id);
+      if (!b) return;
+      b.el.classList.add('twin');
+      const dx = (b.x + b.w / 2) - (a.x + a.w / 2);
+      // 水平方向重叠时（同一列上下排列）两端都从外侧连出，否则相对连出
+      const overlap = Math.abs(dx) < (a.w + b.w) / 2;
+      const da = overlap ? (info.side === 'left' ? -1 : 1) : Math.sign(dx);
+      const db = overlap ? da : -da;
+      const [x1, y1] = end(a, da), [x2, y2] = end(b, db);
+      const c = Math.max(60, Math.abs(x2 - x1) / 2);
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M${x1},${y1} C${x1 + da * c},${y1} ${x2 + db * c},${y2} ${x2},${y2}`);
+      path.setAttribute('class', 'link-edge');
+      edgesEl.append(path);
+    });
+  }
+
   LT.renderTree = function () {
     const S = LT.state;
     const root = S.map.root;
@@ -171,6 +200,7 @@
       el.style.transform = `translate(${b.x}px, ${b.y}px)`;
     });
     drawEdges(root);
+    drawLinks();
 
     const nb = anchor && LT.boxes.get(anchor.id);
     if (nb) {
@@ -197,6 +227,7 @@
       b.el.setAttribute('aria-selected', 'true');
       canvas.setAttribute('aria-activedescendant', 'n-' + id);
     }
+    drawLinks();
     LT.renderPanel();
     if (opts && opts.reveal) LT.reveal(id);
   };

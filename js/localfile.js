@@ -47,6 +47,10 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.classList.remove('show'), ms || 3200);
   };
+  LT.hideToast = function () {
+    clearTimeout(toastTimer);
+    document.getElementById('toast').classList.remove('show');
+  };
 
   LT.copyText = async function (text) {
     try {

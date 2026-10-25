@@ -3,6 +3,17 @@
   'use strict';
   const S = LT.state;
   const info = id => LT.index.get(id);
+  const cloneResources = list => list.map(r => Object.assign({}, r));
+
+  // 把节点的共享内容复制到它的关联节点；状态只在叶子之间同步（父节点状态由各自子节点汇总）
+  function syncTwins(n) {
+    LT.twins(n).forEach(t => {
+      t.title = n.title;
+      t.notes = n.notes;
+      t.resources = cloneResources(n.resources);
+      if (!n.children.length && !t.children.length) t.status = n.status;
+    });
+  }
 
   // 展开某父节点，使挂在 side 一侧的新子节点可见
   function expandFor(p, side) {
@@ -48,7 +59,7 @@
     title = (title || '').trim();
     const n = info(id).node;
     if (!title || title === n.title) return LT.renderAll();
-    LT.commit(() => { n.title = title; });
+    LT.commit(() => { n.title = title; syncTwins(n); });
   };
 
   // 叶子直接设置状态；父节点则把下面所有叶子设为该状态
@@ -57,7 +68,10 @@
     LT.commit(() => {
       (function walk(x) {
         if (x.children.length) x.children.forEach(walk);
-        else x.status = status;
+        else {
+          x.status = status;
+          LT.twins(x).forEach(t => { if (!t.children.length) t.status = status; });
+        }
       })(n);
     });
   };
@@ -144,7 +158,49 @@
 
   LT.updateNode = function (id, fn, opts) {
     const n = info(id).node;
-    LT.commit(() => fn(n), opts);
+    LT.commit(() => { fn(n); syncTwins(n); }, opts);
+  };
+
+  // 把 targetId 关联到 id（两边已有的关联组合并为一组）：
+  // 标题沿用 id 的，笔记与资源合并，叶子状态取进度最靠前的
+  const RANK = { todo: 0, doing: 1, done: 2 };
+  LT.linkNodes = function (id, targetId) {
+    const a = info(id).node, b = info(targetId).node;
+    if (a === b || (a.link && a.link === b.link)) return false;
+    const group = [a, ...LT.twins(a), b, ...LT.twins(b)];
+    if (group.some(x => group.some(y => LT.isAncestor(x.id, y.id)))) {
+      LT.toast('不能关联自己的上级或下级节点');
+      return false;
+    }
+    const key = a.link || b.link || 'k' + LT.uid();
+    const notes = [...new Set(group.map(x => x.notes.trim()).filter(Boolean))].join('\n\n');
+    const seen = new Set();
+    const resources = group.flatMap(x => x.resources).filter(r => {
+      const k = JSON.stringify([r.title, r.url, r.fileKey]);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    const leaves = group.filter(x => !x.children.length);
+    const status = leaves.reduce((s, x) => (RANK[x.status] > RANK[s] ? x.status : s), 'todo');
+    LT.commit(() => {
+      group.forEach(x => {
+        x.link = key;
+        x.title = a.title;
+        x.notes = notes;
+        x.resources = cloneResources(resources);
+        if (!x.children.length) x.status = status;
+      });
+    });
+    LT.toast('已关联，共 ' + group.length + ' 处共享标题、状态、笔记和资源');
+    return true;
+  };
+
+  // 取消关联后保留当前内容的一份副本
+  LT.unlinkNode = function (id) {
+    const n = info(id).node;
+    if (!n.link) return;
+    LT.commit(() => { delete n.link; });
   };
 
   LT.addOutline = function (parentId, text) {

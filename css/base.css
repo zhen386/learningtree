@@ -105,7 +105,7 @@ dialog td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-ali
 }
 
 .res-pick { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-.res-list button.res-file { text-align: left; white-space: normal; word-break: break-all; }
+.res-list button.res-file, .res-list button.link-path { text-align: left; white-space: normal; word-break: break-all; }
 #toast {
   position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); z-index: 100;
   max-width: min(560px, 90vw); padding: 10px 14px; border-radius: 8px; white-space: pre-line;

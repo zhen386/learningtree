@@ -43,6 +43,22 @@
     t.addEventListener('pointerdown', e => e.stopPropagation());
   };
 
+  // ---- 点选关联目标：面板中点“关联节点…”后，在导图上点击目标节点 ----
+  LT.startLinkPick = function (id) {
+    S.linkFrom = id;
+    canvas.classList.add('picking');
+    canvas.focus({ preventScroll: true });
+    LT.toast('点击导图上要关联的节点，Esc 取消', 600000);
+    LT.renderPanel();
+  };
+  LT.endLinkPick = function () {
+    if (!S.linkFrom) return;
+    S.linkFrom = null;
+    canvas.classList.remove('picking');
+    LT.hideToast();
+    LT.renderPanel();
+  };
+
   // ---- 指针：平移 / 选择 / 拖拽节点 ----
   let ptr = null;
 
@@ -186,7 +202,15 @@
       if (p.drop) LT.moveNode(p.nodeId, p.drop.parentId, p.drop.index, p.drop.side);
       return;
     }
-    if (p.moved || !p.nodeId) return;
+    if (p.moved) return;
+    if (S.linkFrom) {
+      // 点选关联目标：点节点即关联，点空白处取消
+      const from = S.linkFrom;
+      LT.endLinkPick();
+      if (p.nodeId && LT.index.has(from)) LT.linkNodes(from, p.nodeId);
+      return;
+    }
+    if (!p.nodeId) return;
     if (p.onFold) LT.toggleCollapse(p.nodeId, null, p.foldSide);
     else if (p.onDot) { LT.select(p.nodeId); LT.cycleStatus(p.nodeId); }
     else LT.select(p.nodeId);
@@ -258,6 +282,7 @@
 
   // 全局快捷键（输入框内不拦截撤销，保留浏览器原生文本撤销）
   function onGlobalKey(e) {
+    if (e.key === 'Escape' && S.linkFrom) { e.preventDefault(); LT.endLinkPick(); return; }
     const mod = e.ctrlKey || e.metaKey;
     if (!mod) return;
     const k = e.key.toLowerCase();

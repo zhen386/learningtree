@@ -15,9 +15,12 @@ window.LT = window.LT || {};
     hits: new Set(),
     undo: [],
     redo: [],
+    linkFrom: null,    // 正在为哪个节点点选关联目标
   };
   // id -> { node, parent, depth, stats: { total, done, doing }, status }
   LT.index = new Map();
+  // 节点关联：link 相同的节点共享标题、状态、笔记和资源。link -> [node, ...]
+  LT.links = new Map();
 
   LT.uid = () => Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 8);
 
@@ -51,6 +54,7 @@ window.LT = window.LT || {};
     if (raw.side === 'left' || raw.side === 'right') n.side = raw.side;
     if (raw.collapsedLeft) n.collapsedLeft = true;
     if (raw.collapsedRight) n.collapsedRight = true;
+    if (typeof raw.link === 'string' && raw.link) n.link = raw.link;
     if (Array.isArray(raw.children)) n.children = raw.children.map(c => normalize(c, seen));
     return n;
   };
@@ -68,26 +72,49 @@ window.LT = window.LT || {};
     }
   }
 
+  function indexLinks(root) {
+    LT.links = new Map();
+    (function walk(n) {
+      if (n.link) {
+        if (!LT.links.has(n.link)) LT.links.set(n.link, []);
+        LT.links.get(n.link).push(n);
+      }
+      n.children.forEach(walk);
+    })(root);
+    // 其他关联节点都被删除后，剩下的一个不再算关联
+    LT.links.forEach((list, key) => {
+      if (list.length < 2) { delete list[0].link; LT.links.delete(key); }
+    });
+  }
+
+  // 同一节点的其他关联节点（不含自身）
+  LT.twins = n => (n.link && LT.links.has(n.link) ? LT.links.get(n.link).filter(x => x !== n) : []);
+
   LT.reindex = function () {
     LT.index.clear();
     ensureSides(S.map.root);
+    indexLinks(S.map.root);
+    // 返回子树中的叶子：key -> status；关联的叶子 key 相同，只计一次
     (function walk(node, parent, depth, side) {
       if (depth === 1) side = node.side;
       const info = { node, parent, depth, side };
       LT.index.set(node.id, info);
+      let leaves;
       if (!node.children.length) {
-        info.stats = { total: 1, done: +(node.status === 'done'), doing: +(node.status === 'doing') };
-        info.status = node.status;
+        leaves = new Map([[node.link || node.id, node.status]]);
       } else {
-        const st = { total: 0, done: 0, doing: 0 };
-        node.children.forEach(c => {
-          const s = walk(c, node, depth + 1, side);
-          st.total += s.total; st.done += s.done; st.doing += s.doing;
+        leaves = node.children.map(c => walk(c, node, depth + 1, side)).reduce((a, b) => {
+          if (a.size < b.size) [a, b] = [b, a];
+          b.forEach((s, k) => a.set(k, s));
+          return a;
         });
-        info.stats = st;
-        info.status = st.done === st.total ? 'done' : (st.done + st.doing) ? 'doing' : 'todo';
       }
-      return info.stats;
+      const st = { total: leaves.size, done: 0, doing: 0 };
+      leaves.forEach(s => { if (s === 'done') st.done++; else if (s === 'doing') st.doing++; });
+      info.stats = st;
+      info.status = !node.children.length ? node.status
+        : st.done === st.total ? 'done' : (st.done + st.doing) ? 'doing' : 'todo';
+      return leaves;
     })(S.map.root, null, 0, null);
     if (!LT.index.has(S.selectedId)) S.selectedId = S.map.root.id;
     computeHits();

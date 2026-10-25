@@ -146,6 +146,30 @@
         : !LT.canPickFiles() ? h('span', { class: 'muted' }, '需 Chrome / Edge，也可直接粘贴路径') : null);
 
     const isRoot = !info.parent;
+    // 关联节点：列出其他位置（可跳转），以及关联 / 取消关联
+    let linkCtrl = [];
+    if (!isRoot) {
+      const twins = LT.twins(n);
+      const picking = S.linkFrom === n.id;
+      const where = t => LT.ancestors(t.id).slice(1).map(a => a.title).concat(t.title).join(' › ');
+      linkCtrl = [
+        h('span', { class: 'field' }, twins.length ? `关联节点（共 ${twins.length + 1} 处，标题、状态、笔记和资源同步）` : '关联节点'),
+        twins.length ? h('ul', { class: 'res-list' }, twins.map(t => h('li', null,
+          h('button', {
+            class: 'link link-path', title: '跳转到该位置',
+            onclick: () => { LT.select(t.id, { reveal: true }); LT.centerOn(t.id); },
+          }, where(t))))) : null,
+        !isLeaf && twins.length ? h('div', { class: 'muted' }, '有子节点时，状态由各自的子节点汇总，不同步') : null,
+        h('div', { class: 'res-pick' },
+          h('button', {
+            'aria-pressed': String(picking),
+            title: '同一知识点出现在多个分支时，关联后只需学习一次，总进度也只计一次',
+            onclick: () => (picking ? LT.endLinkPick() : LT.startLinkPick(n.id)),
+          }, picking ? '取消选择' : '⇄ 关联节点…'),
+          twins.length ? h('button', { class: 'danger', onclick: () => LT.unlinkNode(n.id) }, '取消关联') : null,
+          picking ? h('span', { class: 'muted' }, '在导图上点击目标节点') : null),
+      ];
+    }
     let sideCtrl = null;
     if (info.depth === 1) {
       sideCtrl = [h('span', { class: 'field' }, '分支方向'),
@@ -187,11 +211,13 @@
     }
 
     panel.textContent = '';
-    panel.append(
+    // append 会把 null 变成文字 "null"，先滤掉
+    panel.append(...[
       crumbs,
       h('label', { class: 'field', for: 'f-title' }, '标题'), title,
       h('span', { class: 'field' }, '状态'), seg, progress,
       ...(sideCtrl || []),
+      ...linkCtrl,
       h('label', { class: 'field', for: 'f-notes' }, '笔记'), notes,
       h('span', { class: 'field' }, `引用资源（${n.resources.length}）`),
       n.resources.length ? h('ul', { class: 'res-list' }, n.resources.map((r, i) => resourceItem(n, r, i)))
@@ -199,6 +225,7 @@
       form,
       pick,
       actions,
-      h('p', { class: 'muted tip' }, '提示：选中节点后按 Tab 加子节点、Enter 加同级、空格切换状态；拖拽节点可调整层级与顺序。'));
+      h('p', { class: 'muted tip' }, '提示：选中节点后按 Tab 加子节点、Enter 加同级、空格切换状态；拖拽节点可调整层级与顺序。'),
+    ].filter(Boolean));
   };
 })(window.LT);
