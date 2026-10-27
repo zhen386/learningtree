@@ -66,6 +66,7 @@
       if (f) LT.importFile(f);
     });
     $('btnHelp').addEventListener('click', () => $('dlgHelp').showModal());
+    $('btnTheme').addEventListener('click', LT.cycleTheme);
 
     $('btnOutline').addEventListener('click', () => {
       $('outlineText').value = '';
@@ -104,6 +105,7 @@
       fit: LT.fit, expandAll: click('btnExpand'), collapseAll: click('btnCollapse'),
       help: click('btnHelp'),
     };
+    LT.THEME_MODES.forEach(m => { cmds['theme:' + m] = () => LT.setTheme(m); });
     LT.desktop.onMenu(cmd => {
       // 输入框里的撤销/重做交给浏览器原生文字撤销
       const t = document.activeElement;

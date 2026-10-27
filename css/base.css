@@ -1,14 +1,14 @@
+/* 颜色写成 light-dark(浅色, 深色)，按 color-scheme 取值；默认跟随系统 */
 :root {
-  --bg: #f6f7fb; --panel: #fff; --text: #1f2430; --muted: #6b7280; --line: #e3e6ee;
-  --accent: #4f6bed; --todo: #9aa3b2; --doing: #e8950c; --done: #1f9d63; --danger: #e5484d;
-  --node: #fff; --hit: #ffe680;
+  color-scheme: light dark;
+  --bg: light-dark(#f6f7fb, #15171c); --panel: light-dark(#fff, #1d2027); --text: light-dark(#1f2430, #e6e8ee);
+  --muted: light-dark(#6b7280, #9aa1ad); --line: light-dark(#e3e6ee, #2f333d);
+  --accent: #4f6bed; --todo: light-dark(#9aa3b2, #7d8696); --doing: #e8950c; --done: #1f9d63; --danger: #e5484d;
+  --node: light-dark(#fff, #232731); --hit: light-dark(#ffe680, #6b5800);
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #15171c; --panel: #1d2027; --text: #e6e8ee; --muted: #9aa1ad; --line: #2f333d;
-    --node: #232731; --hit: #6b5800; --todo: #7d8696;
-  }
-}
+/* 手动选择的主题覆盖系统设置 */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body {

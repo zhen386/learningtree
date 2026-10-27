@@ -1,6 +1,6 @@
 // 学习树桌面版主进程：窗口、菜单、数据文件读写与备份、打开本机文件
 'use strict';
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell, protocol, net } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell, protocol, net, nativeTheme } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
@@ -26,6 +26,9 @@ const CSP = [
   "form-action 'none'",
   "frame-ancestors 'none'",
 ].join('; ');
+const THEMES = { system: '跟随系统', light: '浅色', dark: '深色' };
+// 与 css/base.css 中的 --bg 一致，避免窗口打开或缩放时闪出另一种底色
+const bgColor = () => (nativeTheme.shouldUseDarkColors ? '#15171c' : '#f6f7fb');
 
 protocol.registerSchemesAsPrivileged([
   { scheme: SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -46,6 +49,18 @@ let settings = {};
 function loadSettings() {
   try { settings = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')) || {}; } catch (e) { settings = {}; }
   if (typeof settings.dataFile !== 'string' || !path.isAbsolute(settings.dataFile)) settings.dataFile = defaultDataFile();
+  if (!Object.hasOwn(THEMES, settings.theme)) settings.theme = 'system';
+}
+
+// 原生主题同时决定页面的 prefers-color-scheme、菜单栏和对话框的颜色
+function setTheme(mode) {
+  if (!Object.hasOwn(THEMES, mode)) throw new Error('invalid theme');
+  settings.theme = mode;
+  nativeTheme.themeSource = mode;
+  saveSettings();
+  const menu = Menu.getApplicationMenu();
+  const item = menu && menu.getMenuItemById('theme-' + mode);
+  if (item) item.checked = true;
 }
 function saveSettings() {
   try {
@@ -195,7 +210,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: b.width || 1280, height: b.height || 820, x: b.x, y: b.y,
     minWidth: 720, minHeight: 480, show: false,
-    title: '学习树', backgroundColor: '#f6f7fb',
+    title: '学习树', backgroundColor: bgColor(),
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -269,6 +284,14 @@ function buildMenu() {
         { label: '适应窗口', accelerator: 'CmdOrCtrl+0', click: send('fit') },
         { label: '全部展开', click: send('expandAll') },
         { label: '全部折叠', click: send('collapseAll') },
+        { type: 'separator' },
+        {
+          label: '主题',
+          // 交给页面切换，页面再通过 app:setTheme 回到主进程保存，两边只有一条路径
+          submenu: Object.entries(THEMES).map(([mode, label]) => ({
+            id: 'theme-' + mode, label, type: 'radio', checked: settings.theme === mode, click: send('theme:' + mode),
+          })),
+        },
         { type: 'separator' },
         { role: 'togglefullscreen', label: '全屏' },
         { role: 'reload', label: '重新加载' },
@@ -362,7 +385,8 @@ function registerIpc() {
     const r = await dialog.showOpenDialog(win, { title: '选择要引用的本机文件', properties: ['openFile', 'multiSelections'] });
     return r.canceled ? [] : r.filePaths;
   });
-  handle('app:info', () => ({ dataFile: settings.dataFile, version: app.getVersion() }));
+  handle('app:info', () => ({ dataFile: settings.dataFile, version: app.getVersion(), theme: settings.theme }));
+  handle('app:setTheme', mode => setTheme(String(mode)));
 }
 
 // ---------------- 启动 ----------------
@@ -377,6 +401,8 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     loadSettings();
+    nativeTheme.themeSource = settings.theme;
+    nativeTheme.on('updated', () => { if (win) win.setBackgroundColor(bgColor()); });
     const root = path.resolve(APP_ROOT);
     protocol.handle(SCHEME, async req => {
       const { pathname } = new URL(req.url);

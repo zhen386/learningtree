@@ -56,6 +56,35 @@ app.on('browser-window-created', (e, win) => {
       await wait(800);
       check('data survives reload', await ev('[...LT.index.values()].some(i => i.node.title === "改名后" && i.side === "left")'));
 
+      // 主题：页面、原生主题、菜单与设置文件同步，重新加载后保持
+      const { nativeTheme, Menu } = require('electron');
+      const bodyBg = () => ev('getComputedStyle(document.body).backgroundColor');
+      const settingsTheme = () => JSON.parse(fs.readFileSync(path.join(home, 'userData', 'settings.json'), 'utf8')).theme;
+      check('theme defaults to system', await ev('LT.getTheme()') === 'system' && nativeTheme.themeSource === 'system');
+      await ev('LT.setTheme("dark"); 0');
+      await wait(200);
+      check('dark theme colors', await bodyBg() === 'rgb(21, 23, 28)' && await ev('document.documentElement.dataset.theme') === 'dark');
+      check('theme button label', (await ev('document.getElementById("btnTheme").textContent')).includes('深色'));
+      check('native theme follows', nativeTheme.themeSource === 'dark' && nativeTheme.shouldUseDarkColors);
+      check('window background follows', win.getBackgroundColor().toLowerCase() === '#15171c', win.getBackgroundColor());
+      check('theme menu checked', Menu.getApplicationMenu().getMenuItemById('theme-dark').checked);
+      check('theme saved to settings', settingsTheme() === 'dark');
+      win.webContents.reload();
+      await new Promise(r => win.webContents.once('did-finish-load', r));
+      await wait(500);
+      check('theme survives reload', await ev('LT.getTheme()') === 'dark' && await bodyBg() === 'rgb(21, 23, 28)');
+      await ev('LT.setTheme("light"); 0');
+      await wait(200);
+      check('light theme colors', await bodyBg() === 'rgb(246, 247, 251)' && !nativeTheme.shouldUseDarkColors &&
+        win.getBackgroundColor().toLowerCase() === '#f6f7fb');
+      await ev('LT.cycleTheme(); 0');
+      check('cycle light -> dark', await ev('LT.getTheme()') === 'dark');
+      await ev('LT.cycleTheme(); 0');
+      await wait(200);
+      check('cycle dark -> system', await ev('LT.getTheme()') === 'system' && settingsTheme() === 'system' &&
+        await ev('!("theme" in document.documentElement.dataset)'));
+      check('invalid theme rejected', await ev('desktop.setTheme("toString").then(() => false, () => true)') && settingsTheme() === 'system');
+
       // 新建树（Electron 不支持 prompt()，必须用页面内对话框）
       const mapsBefore = await ev('LT.state.db.maps.length');
       await ev('document.getElementById("btnNewMap").click()');
