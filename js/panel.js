@@ -190,6 +190,12 @@
         h('button', { onclick: () => LT.shift(n.id, 1) }, '下移'),
         h('button', { class: 'danger', onclick: () => LT.removeNode(n.id) },
           isLeaf ? '删除' : `删除（含 ${LT.countDesc(n)} 个子节点）`));
+    // 复制 / 剪切连同子节点，可切换到其他学习树后粘贴为选中节点的子节点
+    const clipCtrl = h('div', { class: 'actions' },
+      h('button', { onclick: LT.copyNode, title: 'Ctrl+C：复制此节点及其子节点' }, '复制'),
+      isRoot ? null : h('button', { onclick: LT.cutNode, title: 'Ctrl+X：剪切此节点及其子节点' }, '剪切'),
+      h('button', { onclick: () => LT.pasteFromClipboard(false), title: 'Ctrl+V：粘贴为子节点，保留进度' }, '粘贴'),
+      h('button', { onclick: () => LT.pasteFromClipboard(true), title: 'Ctrl+Shift+V：粘贴为子节点，进度重置为未开始' }, '粘贴并重置进度'));
 
     // 桌面版：把文件从资源管理器拖进面板即可添加为资源
     if (LT.desktop) {
@@ -225,7 +231,8 @@
       form,
       pick,
       actions,
-      h('p', { class: 'muted tip' }, '提示：选中节点后按 Tab 加子节点、Enter 加同级、空格切换状态；拖拽节点可调整层级与顺序。'),
+      clipCtrl,
+      h('p', { class: 'muted tip' }, '提示：选中节点后按 Tab 加子节点、Enter 加同级、空格切换状态；拖拽节点可调整层级与顺序；Ctrl+C / Ctrl+V 可把节点复制到其他学习树。'),
     ].filter(Boolean));
   };
 })(window.LT);

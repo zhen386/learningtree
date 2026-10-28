@@ -25,27 +25,34 @@
     download('学习树-全部-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(data, null, 2), 'application/json');
   };
 
-  // 叶子输出 [ ]/[~]/[x]；笔记与资源以 "> " 行跟在节点下面
-  LT.toMarkdown = function (root) {
-    const out = ['# ' + root.title];
-    const extras = (n, pad) => {
-      n.notes.split('\n').filter(l => l.trim()).forEach(l => out.push(pad + '> ' + l));
-      n.resources.forEach(r => {
-        out.push(pad + '> 🔗 ' + (r.url ? `[${r.title || r.url}](${r.url})` : r.title));
-      });
-    };
-    extras(root, '');
-    if (root.notes.trim() || root.resources.length) out.push('');
-    (function walk(list, depth) {
-      list.forEach(n => {
+  // 笔记与资源以 "> " 行跟在节点下面
+  function extras(out, n, pad) {
+    n.notes.split('\n').filter(l => l.trim()).forEach(l => out.push(pad + '> ' + l));
+    n.resources.forEach(r => {
+      out.push(pad + '> 🔗 ' + (r.url ? `[${r.title || r.url}](${r.url})` : r.title));
+    });
+  }
+
+  // 节点列表转为 Markdown 列表行，叶子输出 [ ]/[~]/[x]；可被 parseOutline 解析回来
+  LT.toOutline = function (list) {
+    const out = [];
+    (function walk(nodes, depth) {
+      nodes.forEach(n => {
         const pad = '  '.repeat(depth);
         const box = n.children.length ? '' : `[${MARK[n.status]}] `;
         out.push(`${pad}- ${box}${n.title}`);
-        extras(n, pad + '  ');
+        extras(out, n, pad + '  ');
         walk(n.children, depth + 1);
       });
-    })(root.children, 0);
-    return out.join('\n') + '\n';
+    })(list, 0);
+    return out;
+  };
+
+  LT.toMarkdown = function (root) {
+    const out = ['# ' + root.title];
+    extras(out, root, '');
+    if (root.notes.trim() || root.resources.length) out.push('');
+    return out.concat(LT.toOutline(root.children)).join('\n') + '\n';
   };
 
   LT.exportMarkdown = function () {

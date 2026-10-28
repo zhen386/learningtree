@@ -103,7 +103,7 @@
       exportJson: LT.exportJson, exportAll: LT.exportAll, exportMd: LT.exportMarkdown,
       undo: LT.undo, redo: LT.redo, find: () => $('search').select(),
       fit: LT.fit, expandAll: click('btnExpand'), collapseAll: click('btnCollapse'),
-      help: click('btnHelp'),
+      help: click('btnHelp'), pasteReset: () => LT.pasteFromClipboard(true),
     };
     LT.THEME_MODES.forEach(m => { cmds['theme:' + m] = () => LT.setTheme(m); });
     LT.desktop.onMenu(cmd => {
@@ -114,6 +114,7 @@
         document.execCommand(cmd);
         return;
       }
+      if (cmd === 'pasteReset' && inField) return;
       if (cmds[cmd]) cmds[cmd]();
     });
     document.body.classList.add('is-desktop');
@@ -121,6 +122,7 @@
 
   LT.initRender();
   LT.initInteract();
+  LT.initClipboard();
   bindToolbar();
   bindDesktopMenu();
   LT.load().then(() => {

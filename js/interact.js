@@ -269,6 +269,7 @@
     if (e.key === 'Tab' && id === S.map.root.id) LT.addChild(id, null, e.shiftKey ? 'left' : 'right');
     else if (e.key === 'Tab' && !e.shiftKey) LT.addChild(id);
     else if (e.key === 'Enter') LT.addSibling(id);
+    else if (mod && e.shiftKey && e.key.toLowerCase() === 'v') LT.pasteFromClipboard(true);
     else if (e.key === 'F2') LT.startInlineEdit(id);
     else if (e.key === ' ') LT.cycleStatus(id);
     else if (e.key === 'Delete' || e.key === 'Backspace') LT.removeNode(id);

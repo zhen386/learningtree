@@ -13,6 +13,7 @@
 - `desktop/preload.js`：通过 `window.desktop` 暴露受限接口
 - `js/*.js`：前端，无框架、无构建，由 `index.html` 按顺序加载，模块挂在全局 `window.LT` 上
   - `store.js` 数据层，`render.js` 布局与绘制，`interact.js` 交互，`ops.js` 编辑操作，`panel.js` 详情面板，`io.js` 导入导出，`localfile.js` 本机文件
+  - `clip.js` 复制 / 剪切 / 粘贴节点：剪贴板同时写自定义格式（完整 JSON）和纯文本（Markdown 大纲），粘贴时生成新 id、只保留子树内部的关联
   - `theme.js` 主题（跟随系统 / 浅色 / 深色），在 `<head>` 中加载；网页版存 localStorage，桌面版存 `settings.json` 并由主进程设置 `nativeTheme`
 
 ## 约定
@@ -22,5 +23,6 @@
 - Electron 不支持 `prompt()`，需要输入时用页面内的 `<dialog>`
 - 测试时设置 `LEARNING_TREE_HOME` 指向临时目录，避免改动真实数据（默认在 `文档\学习树\`）
 - 新增 IPC 接口时用 `handle()` 注册，它会校验消息是否来自本应用页面
+- Electron 45 主进程的 `clipboard.readText()` / `writeText()` 返回 Promise，测试中要 `await`
 - 颜色一律用 `css/base.css` 中的 CSS 变量，新增颜色写成 `light-dark(浅色, 深色)`，不要在别处写死颜色
 - 代码注释和界面文案用中文

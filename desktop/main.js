@@ -232,7 +232,10 @@ function createWindow() {
       if (/^https?:\/\//i.test(url)) shell.openExternal(url);
     }
   });
-  win.webContents.session.setPermissionRequestHandler((wc, perm, cb) => cb(perm === 'clipboard-sanitized-write'));
+  // 读剪贴板只开放给本应用页面（粘贴节点按钮与 Ctrl+Shift+V 需要）
+  const fromApp = (wc, url) => (url || wc.getURL()).startsWith(ORIGIN + '/');
+  win.webContents.session.setPermissionRequestHandler((wc, perm, cb, details) =>
+    cb(perm === 'clipboard-sanitized-write' || (perm === 'clipboard-read' && fromApp(wc, details && details.requestingUrl))));
 
   win.on('close', () => {
     settings.maximized = win.isMaximized();
@@ -273,6 +276,7 @@ function buildMenu() {
         { role: 'cut', label: '剪切' },
         { role: 'copy', label: '复制' },
         { role: 'paste', label: '粘贴' },
+        { label: '粘贴并重置进度', accelerator: 'CmdOrCtrl+Shift+V', registerAccelerator: false, click: send('pasteReset') },
         { role: 'selectAll', label: '全选' },
         { type: 'separator' },
         { label: '搜索', accelerator: 'CmdOrCtrl+F', registerAccelerator: false, click: send('find') },

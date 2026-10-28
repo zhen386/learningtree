@@ -125,6 +125,110 @@ app.on('browser-window-created', (e, win) => {
       await ev('LT.redo(); LT.unlinkNode(_a.id); 0');
       check('unlink clears both', await ev(`!${node('_a')}.link && !${node('_b')}.link`));
 
+      // 复制 / 剪切 / 粘贴节点：跨树、保留或重置进度、关联与 id 处理
+      const { clipboard } = require('electron');
+      const wc = win.webContents;
+      const evg = js => wc.executeJavaScript(js, true);  // 带用户手势，模拟点击按钮
+      const focusOn = sel => ev(`document.querySelector(${JSON.stringify(sel)}).focus(); 0`);
+      const byTitle = t => `[...LT.index.values()].filter(i => i.node.title === ${JSON.stringify(t)}).map(i => i.node)`;
+      const srcIds = await ev(`(() => {
+        const src = LT.addChild(LT.state.map.root.id, "复制源", "left");
+        const c1 = LT.addChild(src.id, "子一"); LT.setStatus(c1.id, "done");
+        LT.updateNode(c1.id, x => { x.notes = "子一笔记"; x.resources.push({ title: "子一资源", url: "https://example.com/a" }); });
+        const c2 = LT.addChild(src.id, "子二"); LT.setStatus(c2.id, "doing");
+        const c3 = LT.addChild(src.id, "子三");
+        LT.linkNodes(c1.id, c3.id);   // 子树内部的关联：粘贴后保留
+        LT.linkNodes(c2.id, _b.id);   // 与子树外的关联：粘贴后解除
+        LT.select(src.id);
+        const ids = []; (function w(n) { ids.push(n.id, n.link); n.children.forEach(w); })(src);
+        return ids.filter(Boolean); })()`);
+      await focusOn('#canvas');
+      wc.copy();
+      await wait(300);
+      const copied = await clipboard.readText();
+      check('copy writes outline text', /- 复制源\n\s+- \[x\] 子一/.test(copied), copied);
+
+      // 重新加载后页面内的记录已清空，只能靠剪贴板中的完整数据（与网页版、桌面版之间互相粘贴相同）
+      wc.reload();
+      await new Promise(r => wc.once('did-finish-load', r));
+      await wait(500);
+      await ev('LT.switchMap(LT.state.db.maps[1].id); 0');
+      await focusOn('#canvas');
+      wc.paste();
+      await wait(300);
+      check('paste into another tree keeps everything', await ev(`(() => {
+        const [p] = ${byTitle('复制源')}; if (!p) return false;
+        const [c1, c2, c3] = p.children, src = ${JSON.stringify(srcIds)};
+        const all = []; (function w(n) { all.push(n.id, n.link); n.children.forEach(w); })(p);
+        return LT.index.get(p.id).parent === LT.state.map.root && p.side === "left" && p.children.length === 3 &&
+          c1.status === "done" && c2.status === "doing" && c1.notes === "子一笔记" && c1.resources[0].url === "https://example.com/a" &&
+          !!c1.link && c1.link === c3.link && !c2.link && all.filter(Boolean).every(x => !src.includes(x)); })()`));
+      check('source tree untouched', await ev(`(() => { const m = LT.state.db.maps[0].root;
+        return m.children.some(c => c.title === "复制源" && c.children.length === 3); })()`));
+      await ev('LT.undo(); 0');
+      check('paste is undoable', await ev(`${byTitle('复制源')}.length === 0`));
+      await ev('LT.redo(); 0');
+
+      win.focus();
+      await ev('LT.select(LT.state.map.root.id); 0');
+      check('paste with reset reads clipboard', await evg('LT.pasteFromClipboard(true)'));
+      check('reset sets all to todo', await ev(`(() => { const list = ${byTitle('复制源')};
+        return list.length === 2 && list[1].children.every(c => c.status === "todo"); })()`));
+      // 同一页面内复制后，Ctrl+Shift+V 只能读到纯文本，仍按完整数据粘贴（保留关联）
+      await ev(`LT.select(${byTitle('复制源')}[0].id); 0`);
+      await focusOn('#canvas');
+      wc.copy();
+      await wait(200);
+      await ev('LT.select(LT.state.map.root.id); 0');
+      await evg('LT.pasteFromClipboard(true)');
+      check('reset paste keeps full data in same session', await ev(`(() => { const p = ${byTitle('复制源')}[2];
+        return !!p && p.children.every(c => c.status === "todo") && !!p.children[0].link && p.children[0].link === p.children[2].link; })()`));
+
+      // 其他软件中复制的大纲文本
+      await clipboard.writeText('- 外部大纲\n  - [x] 外部子\n    > 外部笔记');
+      await focusOn('#canvas');
+      wc.paste();
+      await wait(300);
+      check('paste outline text from other apps', await ev(`(() => { const [p] = ${byTitle('外部大纲')};
+        return !!p && p.children[0].status === "done" && p.children[0].notes === "外部笔记"; })()`));
+
+      // 剪切：从一棵树移到另一棵树
+      await ev(`LT.select(${byTitle('外部大纲')}[0].id); 0`);
+      await focusOn('#canvas');
+      wc.cut();
+      await wait(300);
+      check('cut removes node', await ev(`${byTitle('外部大纲')}.length === 0`));
+      await ev('LT.switchMap(LT.state.db.maps[0].id); LT.select(LT.state.map.root.id); 0');
+      await focusOn('#canvas');
+      wc.paste();
+      await wait(300);
+      check('cut node pasted into other tree', await ev(`${byTitle('外部大纲')}.length === 1`));
+      const nodesBeforeRootCut = await ev('LT.select(LT.state.map.root.id); LT.index.size');
+      await focusOn('#canvas');
+      wc.cut();
+      await wait(200);
+      check('root cannot be cut', await ev('LT.index.size') === nodesBeforeRootCut);
+
+      // 面板按钮
+      await ev(`LT.select(${byTitle('外部大纲')}[0].id); 0`);
+      await evg('document.querySelector("#panel .actions button[title^=\'Ctrl+C\']").click(); 0');
+      const copiedByButton = await clipboard.readText();
+      check('copy button', copiedByButton.startsWith('- 外部大纲'), copiedByButton);
+      await evg('document.querySelector("#panel .actions button[title^=\'Ctrl+X\']").click(); 0');
+      await wait(200);
+      check('cut button', await ev(`${byTitle('外部大纲')}.length === 0`));
+
+      // 输入框中的粘贴不受影响
+      const nodeCount = await ev('LT.index.size');
+      await clipboard.writeText('输入框文字');
+      await focusOn('#search');
+      wc.paste();
+      await wait(300);
+      check('paste in input untouched', await ev('document.getElementById("search").value') === '输入框文字' &&
+        await ev('LT.index.size') === nodeCount);
+      await ev('const s = document.getElementById("search"); s.value = ""; s.dispatchEvent(new Event("input")); 0');
+      await ev('LT.select(LT.addChild(LT.state.map.root.id, "剪贴板测试结束", "right").id); 0');
+
       // 协议只开放前端文件
       check('desktop code not served', await ev('fetch("app://tree/desktop/main.js").then(r => r.status)') === 404);
       check('node_modules not served', await ev('fetch("app://tree/package.json").then(r => r.status)') === 404);

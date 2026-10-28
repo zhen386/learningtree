@@ -203,15 +203,21 @@
     LT.commit(() => { delete n.link; });
   };
 
-  LT.addOutline = function (parentId, text) {
-    const nodes = LT.parseOutline(text);
+  // 把一组新节点追加为 parentId 的子节点，并选中第一个
+  LT.insertNodes = function (parentId, nodes) {
     if (!nodes.length) return;
     const p = info(parentId).node;
-    // 粘贴到根下时放在右侧，之后可手动调整
-    const side = p === S.map.root ? 'right' : undefined;
-    if (side) nodes.forEach(c => { c.side = side; });
-    LT.commit(() => { expandFor(p, side); p.children.push(...nodes); S.selectedId = nodes[0].id; });
+    const isRoot = p === S.map.root;
+    // 放到根下时沿用原来的左右侧，没有则放右侧；其他位置不记录 side
+    nodes.forEach(c => { if (isRoot) c.side = c.side === 'left' ? 'left' : 'right'; else delete c.side; });
+    LT.commit(() => {
+      nodes.forEach(c => expandFor(p, c.side));
+      p.children.push(...nodes);
+      S.selectedId = nodes[0].id;
+    });
   };
+
+  LT.addOutline = (parentId, text) => LT.insertNodes(parentId, LT.parseOutline(text));
 
   LT.newMap = function (title) {
     const m = { id: LT.uid(), root: LT.makeNode(title) };
